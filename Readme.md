@@ -1,7 +1,7 @@
 ## Deploy
 1. Pull project
 2. Run command "make app-server"
-##Testing
+## Testing
 1. Run command "make run-test"
 
 After tests run command "app-down"
