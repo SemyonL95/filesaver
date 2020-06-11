@@ -1,3 +1,6 @@
+## TASK
+https://docs.google.com/document/d/1WJv0eUixKjRpWcV9Mbpfb3_UjtCyfR-AMdYVLoGUmvU/edit
+
 ## Deploy
 1. Pull project
 2. Run command "make app-server"
