@@ -38,7 +38,7 @@ func (c *RedisCache) Exists(ctx context.Context, key string, value string) (bool
 func (c *RedisCache) Remove(ctx context.Context, key string) (bool, error) {
 	res := c.redis.Del(ctx, key)
 	if res == nil {
-		return false, fmt.Errorf("error during seting value to set")
+		return false, fmt.Errorf("error during remove of set")
 	}
 
 	if res.Val() > 0 {

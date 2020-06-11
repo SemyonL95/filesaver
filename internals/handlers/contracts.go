@@ -6,8 +6,8 @@ import (
 )
 
 type FileStorage interface {
-	Get(string) (<-chan string, error)
-	Put(string, io.Reader) error
+	OpenEntry(string) (io.ReadCloser, error)
+	CreateEntry(string, io.Reader) (io.WriteCloser, error)
 }
 
 type Cache interface {

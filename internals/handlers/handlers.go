@@ -1,18 +1,15 @@
 package handlers
 
 import (
-	"crypto/rand"
+	"bufio"
 	"fmt"
+	"io"
 	"log"
-	"mime/multipart"
 	"net/http"
 	"os"
-	"regexp"
 )
 
 const FileChunk = 100000000 // 100MB
-
-var fileNameRegex = regexp.MustCompile("^[a-z0-9_.@()-]+.txt$")
 
 func (a *API) Upload(w http.ResponseWriter, r *http.Request) {
 	log.Printf("%s %s %s user-agent=%s", r.Method, r.Proto, r.URL.String(), r.UserAgent())
@@ -23,6 +20,7 @@ func (a *API) Upload(w http.ResponseWriter, r *http.Request) {
 	}
 
 	log.Printf("parsing multipart form")
+
 	err := r.ParseMultipartForm(FileChunk)
 	if err != nil {
 		http.Error(w, "failed to parse file", http.StatusInternalServerError)
@@ -56,13 +54,22 @@ func (a *API) Upload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = a.FileStorage.Put(fileHeader.Filename, file)
+	out, err := a.FileStorage.CreateEntry(fileHeader.Filename, file)
 	if err != nil {
 		http.Error(w, "failed to save file", http.StatusInternalServerError)
 		log.Printf("failed to save file: %v", err)
+	}
+	defer out.Close()
+
+	_, err = io.Copy(out, file)
+	if err != nil {
+		http.Error(w, "failed to write in file", http.StatusInternalServerError)
+		log.Printf("failed to write in file: %v", err)
 
 		return
 	}
+
+	w.Write([]byte("File saved"))
 
 	return
 }
@@ -85,32 +92,35 @@ func (a *API) GetFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	file, err := a.FileStorage.Get(filename)
+	file, err := a.FileStorage.OpenEntry(filename)
 	if err, ok := err.(*os.PathError); ok {
 		log.Printf("file not exists: %v", err)
 		http.Error(w, "file not exist", http.StatusNotFound)
 
 		return
 	}
-
 	if err != nil {
 		log.Printf("error during get from storage: %v", err)
-		http.Error(w, "error during get from", http.StatusInternalServerError)
+		http.Error(w, "error during get from storage", http.StatusInternalServerError)
 
 		return
 	}
+	defer file.Close()
 
 	processID, err := randomProcessID()
 	if err != nil {
-		log.Printf("error generating processId: %v", err)
+		log.Printf("error generating processID: %v", err)
 		http.Error(w, "error generating processID", http.StatusInternalServerError)
 
 		return
 	}
 
 	cacheName := fmt.Sprintf("file:%s", processID)
-	for word := range file {
-		exists, err := a.Cache.Exists(r.Context(), cacheName, word)
+	lineScanner := bufio.NewScanner(file)
+	lineScanner.Split(bufio.ScanWords)
+	for lineScanner.Scan() {
+		word := lineScanner.Text()
+		exists, err := a.Cache.Exists(r.Context(), cacheName, lineScanner.Text())
 
 		if err != nil {
 			log.Printf("redis error: %v", err)
@@ -131,41 +141,15 @@ func (a *API) GetFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		w.Write([]byte(word))
+		w.Write([]byte(fmt.Sprintf("%s\n", word)))
 	}
 
 	a.Cache.Remove(r.Context(), cacheName)
 
-	return
-}
-
-func getFileExt(file multipart.File) (string, error) {
-	fileHeader := make([]byte, 512) // http://golang.org/pkg/net/http/#DetectContentType
-
-	if _, err := file.Read(fileHeader); err != nil {
-		return "", err
+	if lineScanner.Err() != nil {
+		log.Printf("scanner error: %v", err)
+		http.Error(w, "scanner error", http.StatusInternalServerError)
 	}
-
-	if _, err := file.Seek(0, 0); err != nil {
-		return "", err
-	}
-
-	contentType := http.DetectContentType(fileHeader)
-
-	return contentType, nil
-}
-
-func randomProcessID() (s string, err error) {
-	b := make([]byte, 8)
-	_, err = rand.Read(b)
-	if err != nil {
-		return
-	}
-	s = fmt.Sprintf("%x", b)
 
 	return
-}
-
-func validateFileName(fileName string) bool {
-	return fileNameRegex.MatchString(fileName)
 }

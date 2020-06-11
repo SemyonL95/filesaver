@@ -1,10 +1,8 @@
 package filestorage
 
 import (
-	"bufio"
 	"fmt"
 	"io"
-	"log"
 	"os"
 )
 
@@ -18,51 +16,23 @@ func NewLocalStorage(storagePath string) *LocalStorage {
 	}
 }
 
-func (s *LocalStorage) Put(filename string, file io.Reader) error {
-	filepath := fmt.Sprintf("%s/%s", s.StoragePath, filename)
-
-	out, err := os.Create(filepath)
-	if err != nil {
-		return fmt.Errorf("%v", err)
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, file)
-	if err != nil {
-		return fmt.Errorf("%v", err)
-	}
-
-	return nil
-}
-
-func (s *LocalStorage) Get(filename string) (<-chan string, error) {
+func (s *LocalStorage) OpenEntry(filename string) (io.ReadCloser, error) {
 	filepath := fmt.Sprintf("%s/%s", s.StoragePath, filename)
 
 	file, err := os.Open(filepath)
 	if err != nil {
 		return nil, err
 	}
+	return file, nil
+}
 
-	reader := bufio.NewReader(file)
+func (s *LocalStorage) CreateEntry(filename string, file io.Reader) (io.WriteCloser, error) {
+	filepath := fmt.Sprintf("%s/%s", s.StoragePath, filename)
 
-	outChan := make(chan string)
+	out, err := os.Create(filepath)
+	if err != nil {
+		return nil, fmt.Errorf("%v", err)
+	}
 
-	go func() {
-		for {
-			line, err := reader.ReadString('\n')
-			if err != nil {
-				if err == io.EOF {
-					close(outChan)
-					file.Close()
-					break
-				}
-			}
-
-			log.Printf(line)
-
-			outChan <- line
-		}
-	}()
-
-	return outChan, nil
+	return out, nil
 }
