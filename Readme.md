@@ -6,8 +6,8 @@ https://docs.google.com/document/d/1WJv0eUixKjRpWcV9Mbpfb3_UjtCyfR-AMdYVLoGUmvU/
 2. Run command "make app-server"
 ## Testing
 1. Run command "make run-test"
+2. After tests, run command "app-down" for stop docker
 
-After tests run command "app-down"
 ## Additional description
 1. Project has two endpoints PUT "/upload" and GET "/files"
 2. You could store multiple files which will store in storage folder with original name
